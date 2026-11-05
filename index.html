@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NutritionPlan - API Search</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f7f3ed;
+            color: #4a403b;
+            max-width: 750px;
+            margin: 30px auto;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            border-bottom: 2px solid #e6dcd0;
+            padding-bottom: 12px;
+        }
+        nav h2 { margin: 0; color: #5c4033; }
+        .nav-link {
+            text-decoration: none;
+            background-color: #8c6d53;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        .nav-link:hover { background-color: #70543f; }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid #d4c5b9;
+            border-radius: 6px;
+            background-color: #ffffff;
+            font-size: 14px;
+            outline: none;
+        }
+        input[type="text"]:focus { border-color: #a4846c; }
+        button {
+            padding: 10px 20px;
+            background-color: #8c6d53;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #70543f; }
+        .result-card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e6dcd0;
+            margin-top: 15px;
+        }
+        .error-msg { color: #b71c1c; font-weight: 600; }
+        .nutrition-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .nutrition-item {
+            background: #faf7f2;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #efeae2;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <h2>NutritionPlan</h2>
+        <a href="planner.html" class="nav-link">Diet Planner ➔</a>
+    </nav>
+
+    <!-- search nutrition page -->
+    <p style="color: #7c6f64; margin-bottom: 20px;">Easily lookup nutritional values and calories for any food item.</p>
+    
+    <div class="search-box">
+        <input type="text" id="food-input" placeholder="Enter food name (e.g., apple, banana)...">
+        <button id="fetch-data">Search Nutrition</button>
+    </div>
+    
+    <div id="result-container" class="result-card" style="display: none;">
+        <h3 id="food-title"></h3>
+        <p><strong>Brand / Category:</strong> <span id="food-category"></span></p>
+        <div class="nutrition-grid">
+            <div class="nutrition-item">🔥 <strong>Calories:</strong> <span id="val-calorie"></span> kcal</div>
+            <div class="nutrition-item">🥩 <strong>Protein:</strong> <span id="val-protein"></span> g</div>
+            <div class="nutrition-item">🍞 <strong>Carbohydrates:</strong> <span id="val-carbs"></span> g</div>
+            <div class="nutrition-item">🧈 <strong>Total Fat:</strong> <span id="val-fat"></span> g</div>
+        </div>
+    </div>
+    <p id="status-message"></p>
+
+    <script>
+        const USDA_API_KEY = 'jK7grrLRmDGhFWFF7HPwJjWQM6Bj7889HwfGPgfQ';
+        const fetchDataButton = document.getElementById('fetch-data');
+        const foodInput = document.getElementById('food-input');
+        const statusMessage = document.getElementById('status-message');
+        const resultContainer = document.getElementById('result-container');
+        
+        const foodTitle = document.getElementById('food-title');
+        const foodCategory = document.getElementById('food-category');
+        const valCalorie = document.getElementById('val-calorie');
+        const valProtein = document.getElementById('val-protein');
+        const valCarbs = document.getElementById('val-carbs');
+        const valFat = document.getElementById('val-fat');
+
+        fetchDataButton.addEventListener('click', () => {
+            const foodQuery = foodInput.value.trim();
+
+            if (!foodQuery) {
+                statusMessage.textContent = '⚠️ Please enter a food name first!';
+                statusMessage.className = 'error-msg';
+                resultContainer.style.display = 'none';
+                return;
+            }
+
+            statusMessage.textContent = '⏳ Fetching data from USDA API...';
+            statusMessage.className = '';
+            resultContainer.style.display = 'none';
+
+            const baseUrl = 'https://api.nal.usda.gov/fdc/v1/foods/search';
+            const params = new URLSearchParams({
+                api_key: USDA_API_KEY,
+                query: foodQuery,
+                pageSize: '1'
+            });
+
+            fetch(`${baseUrl}?${params.toString()}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('USDA server is busy or API key is invalid.');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (!data.foods || data.foods.length === 0) {
+                    statusMessage.textContent = '❌ No information found for this food item. Please try another keyword.';
+                    statusMessage.className = 'error-msg';
+                    return;
+                }
+
+                const foodItem = data.foods[0];
+                const nutrients = foodItem.foodNutrients || [];
+
+                const getNutrient = (num) => {
+                    const found = nutrients.find(n => n.nutrientNumber === num);
+                    return found ? found.value : 0;
+                };
+
+                const calories = getNutrient('208'); 
+                const protein = getNutrient('203');  
+                const carbs = getNutrient('205');    
+                const fat = getNutrient('204');      
+
+                foodTitle.textContent = foodItem.description || foodQuery.toUpperCase();
+                foodCategory.textContent = foodItem.foodCategory || foodItem.brandOwner || 'General';
+                valCalorie.textContent = calories;
+                valProtein.textContent = protein;
+                valCarbs.textContent = carbs;
+                valFat.textContent = fat;
+
+                statusMessage.textContent = '✅ Successfully retrieved nutrition data!';
+                statusMessage.className = '';
+                resultContainer.style.display = 'block';
+            })
+            .catch(error => {
+                statusMessage.textContent = '❌ Network Error: ' + error.message;
+                statusMessage.className = 'error-msg';
+            });
+        });
+    </script>
+</body>
+</html>

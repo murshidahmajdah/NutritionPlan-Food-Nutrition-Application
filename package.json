@@ -1,0 +1,12 @@
+{
+  "name": "nutrition-plan",
+  "version": "1.0.0",
+  "description": "NutritionPlan Desktop Application with Electron and USDA API",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron": "^33.0.0"
+  }
+}
